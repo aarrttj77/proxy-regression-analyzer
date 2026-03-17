@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proxy Regression Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --font-sans:'IBM Plex Sans',sans-serif;--font-mono:'IBM Plex Mono',monospace;
+  --bg:#ffffff;--bg2:#f6f5f2;--bg3:#eeecea;
+  --text:#1a1a18;--text2:#6b6b67;--text3:#9b9b96;
+  --border:rgba(0,0,0,0.11);--border2:rgba(0,0,0,0.2);
+  --r:8px;--rl:12px;
+  --green-bg:#EAF3DE;--green:#3B6D11;
+  --amber-bg:#FAEEDA;--amber:#854F0B;
+  --red-bg:#FAECE7;--red:#993C1D;
+  --blue-bg:#E6F1FB;--blue:#185FA5;
+  --teal:#1D9E75;--teal-d:#0F6E56;--coral:#D85A30;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1c1c1a;--bg2:#252523;--bg3:#2e2e2b;
+  --text:#f0efea;--text2:#a0a09a;--text3:#707068;
+  --border:rgba(255,255,255,0.09);--border2:rgba(255,255,255,0.17);
+  --green-bg:#17300a;--green:#8ecf55;
+  --amber-bg:#2e1f05;--amber:#f4b84a;
+  --red-bg:#2a1008;--red:#f08060;
+  --blue-bg:#0c2440;--blue:#5ba3e8;
+}}
+body{font-family:var(--font-sans);color:var(--text);background:var(--bg3);min-height:100vh;padding:2rem 1rem;line-height:1.5;}
+.page{max-width:960px;margin:0 auto;}
+header{margin-bottom:2rem;}
+header h1{font-size:22px;font-weight:500;margin-bottom:4px;}
+header p{font-size:14px;color:var(--text2);max-width:640px;}
+.section{margin-bottom:1.75rem;}
+.section-head{display:flex;align-items:center;gap:10px;margin-bottom:.85rem;}
+.step{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--bg2);border:.5px solid var(--border);font-size:12px;font-weight:500;color:var(--text2);flex-shrink:0;}
+.section-head h2{font-size:15px;font-weight:500;}
+.card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--rl);padding:1.25rem;}
+.row{display:flex;gap:12px;flex-wrap:wrap;}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:140px;}
+.field label{font-size:12px;color:var(--text2);}
+input[type=text],input[type=number],select{padding:7px 10px;border:.5px solid var(--border2);border-radius:var(--r);background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:13px;width:100%;}
+input:focus,select:focus{outline:none;border-color:var(--text2);}
+.btn{padding:7px 14px;border-radius:var(--r);border:.5px solid var(--border2);background:transparent;cursor:pointer;font-size:13px;color:var(--text);font-family:var(--font-sans);}
+.btn:hover{background:var(--bg2);}
+.btn.primary{background:var(--text);color:var(--bg);border-color:var(--text);}
+.btn.primary:hover{opacity:.85;}
+.btn.sm{padding:4px 10px;font-size:12px;}
+.remove-btn{background:none;border:none;cursor:pointer;color:var(--text2);font-size:18px;line-height:1;padding:2px 6px;border-radius:4px;}
+.remove-btn:hover{color:var(--red);background:var(--red-bg);}
+/* Search */
+.ac-wrap{position:relative;}
+.ac-dropdown{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg);border:.5px solid var(--border2);border-radius:var(--r);z-index:200;max-height:260px;overflow-y:auto;box-shadow:0 6px 20px rgba(0,0,0,.15);}
+.ac-item{padding:9px 12px;cursor:pointer;border-bottom:.5px solid var(--border);}
+.ac-item:last-child{border-bottom:none;}
+.ac-item:hover,.ac-item.hover{background:var(--bg2);}
+.ac-item-name{font-size:13px;font-weight:500;color:var(--text);}
+.ac-item-sub{display:flex;gap:12px;margin-top:2px;}
+.ac-item-id{font-size:11px;font-family:var(--font-mono);color:var(--text3);}
+.ac-item-src{font-size:11px;color:var(--text3);}
+.ac-msg{padding:10px 12px;font-size:13px;color:var(--text3);}
+/* Proxy cards */
+.proxy-card{background:var(--bg);border:.5px solid var(--border);border-radius:var(--rl);padding:1rem;margin-bottom:10px;}
+.proxy-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.proxy-name{font-size:14px;font-weight:500;}
+.proxy-id{font-size:11px;font-family:var(--font-mono);color:var(--text3);margin-top:2px;}
+.proxy-meta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;}
+.status-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:3px 9px;border-radius:20px;}
+.status-loading{background:var(--amber-bg);color:var(--amber);}
+.status-ok{background:var(--green-bg);color:var(--green);}
+.status-error{background:var(--red-bg);color:var(--red);}
+.status-idle{background:var(--bg2);color:var(--text3);}
+/* Table */
+.tbl-scroll{overflow-x:auto;margin-top:8px;}
+.data-table{width:100%;border-collapse:collapse;font-size:13px;}
+.data-table th{font-size:11px;font-weight:500;color:var(--text2);text-align:left;padding:6px 8px;border-bottom:.5px solid var(--border);background:var(--bg2);white-space:nowrap;}
+.data-table td{padding:3px 5px;border-bottom:.5px solid var(--border);}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table td input[type=number],.data-table td input[type=text]{border:.5px solid transparent;border-radius:4px;padding:4px 6px;font-size:13px;background:transparent;color:var(--text);font-family:var(--font-sans);min-width:75px;}
+.data-table td input:focus{border-color:var(--border2);background:var(--bg2);outline:none;}
+td.missing{background:color-mix(in srgb,var(--amber-bg) 60%,transparent);}
+td.missing input{color:var(--amber);}
+.na-text{font-size:12px;color:var(--text3);font-style:italic;padding:4px 6px;}
+/* Results */
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:1.25rem;}
+.metric{background:var(--bg2);border-radius:var(--r);padding:12px;}
+.metric .lbl{font-size:11px;color:var(--text2);margin-bottom:4px;}
+.metric .val{font-size:22px;font-weight:500;}
+.metric .sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.coef-row{display:flex;align-items:center;padding:10px 0;border-bottom:.5px solid var(--border);gap:10px;}
+.coef-row:last-child{border-bottom:none;}
+.coef-name{font-size:13px;font-weight:500;flex:1;min-width:90px;}
+.coef-val{font-size:12px;font-family:var(--font-mono);color:var(--text2);min-width:64px;text-align:right;}
+.bar-wrap{flex:2;height:7px;background:var(--bg2);border-radius:4px;overflow:hidden;min-width:50px;}
+.bar-fill{height:100%;border-radius:4px;}
+.sig{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:500;min-width:54px;text-align:center;white-space:nowrap;}
+.corr-cell{display:flex;align-items:center;font-size:13px;padding:8px 12px;background:var(--bg2);border-radius:var(--r);margin-bottom:6px;gap:10px;}
+.corr-r{font-family:var(--font-mono);font-weight:500;min-width:52px;text-align:right;}
+.proj-box{background:var(--bg2);border-radius:var(--rl);padding:2rem;text-align:center;margin-bottom:12px;}
+.proj-lbl{font-size:13px;color:var(--text2);margin-bottom:6px;}
+.proj-val{font-size:48px;font-weight:500;line-height:1;margin-bottom:6px;}
+.proj-ci{font-size:13px;color:var(--text2);}
+.proj-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:1.25rem;}
+.proj-field{display:flex;flex-direction:column;gap:4px;}
+.proj-field label{font-size:12px;color:var(--text2);}
+.tab-row{display:flex;margin-bottom:1.25rem;border-bottom:.5px solid var(--border);overflow-x:auto;}
+.tab{padding:8px 14px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:var(--text2);background:none;border-left:none;border-right:none;border-top:none;font-family:var(--font-sans);margin-bottom:-.5px;white-space:nowrap;}
+.tab.active{color:var(--text);border-bottom:2px solid var(--text);font-weight:500;}
+.notice{font-size:12px;color:var(--text2);padding:10px 14px;border:.5px solid var(--border);border-radius:var(--r);margin-top:12px;}
+.notice.warn{background:var(--amber-bg);color:var(--amber);border-color:rgba(133,79,11,.3);}
+.notice.info{background:var(--blue-bg);color:var(--blue);border-color:rgba(24,95,165,.3);}
+.empty-state{text-align:center;padding:2.5rem 1rem;color:var(--text2);font-size:14px;}
+.scatter-wrap{position:relative;width:100%;height:300px;}
+.run-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:10px;}
+.spinner{display:inline-block;width:11px;height:11px;border:1.5px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.add-proxy-btn{background:var(--bg);border:.5px dashed var(--border2);border-radius:var(--rl);padding:1rem;text-align:center;color:var(--text2);font-size:13px;cursor:pointer;width:100%;}
+.add-proxy-btn:hover{background:var(--bg2);}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <h1>Proxy Regression Analyzer</h1>
+  <p>Estimate unknown outcomes using live World Bank indicator data. Search real indicators, training data loads automatically, and regression finds the right weights — no equal-weighting assumptions.</p>
+</header>
+
+<div class="section">
+  <div class="section-head"><span class="step">1</span><h2>Define your target variable</h2></div>
+  <div class="card">
+    <div class="row">
+      <div class="field">
+        <label>What are you trying to estimate?</label>
+        <input type="text" id="outcomeVar" placeholder="e.g. Vitamin A deficiency prevalence (%)" value="Vitamin A deficiency prevalence (%)">
+      </div>
+      <div class="field" style="max-width:180px;">
+        <label>Unit</label>
+        <input type="text" id="outcomeUnit" placeholder="e.g. %, per 1000" value="%">
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <div class="field">
+        <label>Context / notes</label>
+        <input type="text" id="contextNote" placeholder="e.g. Estimating for Nigerian states, 2018" value="Estimating by Nigerian state, 2018">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head"><span class="step">2</span><h2>Add World Bank proxy indicators</h2></div>
+  <div id="proxyCards"></div>
+  <div class="add-proxy-btn" id="addProxyBtn" onclick="openSearch()">+ Search World Bank indicators to add as proxies</div>
+  <div id="searchPanel" style="display:none;margin-top:10px;">
+    <div class="card">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Type to search across ~16,000 World Bank indicators</div>
+      <div class="ac-wrap">
+        <input type="text" id="searchInput" placeholder="e.g. stunting, poverty headcount, open defecation, literacy…" oninput="onSearch(this.value)" autocomplete="off">
+        <div id="searchDd" class="ac-dropdown" style="display:none;"></div>
+      </div>
+      <button class="btn sm" onclick="closeSearch()" style="margin-top:8px;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head"><span class="step">3</span><h2>Training data</h2></div>
+  <div id="trainingArea">
+    <div class="card"><div class="empty-state">Add proxy indicators above — country data will load automatically from the World Bank API.</div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="run-row">
+    <div class="section-head" style="margin-bottom:0;"><span class="step">4</span><h2>Run analysis</h2></div>
+    <button class="btn primary" onclick="runAnalysis()">Run regression analysis</button>
+  </div>
+  <div id="resultsArea"></div>
+</div>
+
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+/* ── state ── */
+let proxies = [];
+let rows = [];
+let lastResult = null;
+let scatterChart = null;
+let searchTimer = null;
+const iCache = {};
+const SKIP = new Set('WLD EAS ECS LCN MEA NAC SAS SSF EAP MNA LAC SSA HIC LMC LIC UMC LMY MIC OED EUU EMU IBD IBT IDB IDA IDX CSS CEB EAR FCS HPC LTE PRE PSS PST TEA TEC TLA TMN TSA TSS OSS ARB'.split(' '));
+const WB = 'https://api.worldbank.org/v2';
+
+function uid(){return Math.random().toString(36).slice(2,8);}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ── search ── */
+function openSearch(){
+  document.getElementById('searchPanel').style.display='';
+  document.getElementById('addProxyBtn').style.display='none';
+  document.getElementById('searchInput').value='';
+  document.getElementById('searchDd').style.display='none';
+  setTimeout(()=>document.getElementById('searchInput').focus(),50);
+}
+function closeSearch(){
+  document.getElementById('searchPanel').style.display='none';
+  document.getElementById('addProxyBtn').style.display='';
+}
+function onSearch(val){
+  clearTimeout(searchTimer);
+  const dd=document.getElementById('searchDd');
+  if(val.trim().length<2){dd.style.display='none';return;}
+  dd.innerHTML='<div class="ac-msg"><span class="spinner"></span> Searching World Bank indicators…</div>';
+  dd.style.display='';
+  searchTimer=setTimeout(()=>doSearch(val.trim()),380);
+}
+async function doSearch(q){
+  const dd=document.getElementById('searchDd');
+  try{
+    const r=await fetch(`${WB}/indicator?format=json&source=2&search=${encodeURIComponent(q)}&per_page=40`);
+    const j=await r.json();
+    const items=(Array.isArray(j)&&j[1])||[];
+    if(!items.length){dd.innerHTML='<div class="ac-msg">No indicators found. Try different keywords.</div>';return;}
+    dd.innerHTML=items.slice(0,30).map((x,i)=>`
+      <div class="ac-item" id="aci-${i}" onclick="pickIndicator('${esc(x.id)}','${esc(x.name)}','${esc(x.source?.value||'WDI')}')" onmouseover="hoverItem(${i})">
+        <div class="ac-item-name">${esc(x.name)}</div>
+        <div class="ac-item-sub"><span class="ac-item-id">${esc(x.id)}</span><span class="ac-item-src">${esc(x.source?.value||'')}</span></div>
+      </div>`).join('');
+  }catch(e){dd.innerHTML='<div class="ac-msg" style="color:var(--red)">Could not reach World Bank API. Check your connection.</div>';}
+}
+function hoverItem(i){document.querySelectorAll('.ac-item').forEach((el,j)=>el.classList.toggle('hover',i===j));}
+async function pickIndicator(id,name,src){
+  closeSearch();
+  const p={id:uid(),indicatorId:id,name:name,unit:'',direction:'positive',source:src,data:{}};
+  proxies.push(p);
+  renderProxyCards();
+  await loadProxy(p);
+}
+
+/* ── proxy cards ── */
+function renderProxyCards(){
+  document.getElementById('proxyCards').innerHTML=proxies.map(p=>`
+    <div class="proxy-card" id="pc-${p.id}">
+      <div class="proxy-top">
+        <div>
+          <div class="proxy-name">${esc(p.name)}</div>
+          <div class="proxy-id">${esc(p.indicatorId)}</div>
+        </div>
+        <button class="remove-btn" onclick="removeProxy('${p.id}')">×</button>
+      </div>
+      <div class="proxy-meta">
+        <span class="status-pill status-idle" id="ps-${p.id}">Pending</span>
+        <span id="pyr-${p.id}" style="font-size:12px;color:var(--text2);"></span>
+        <select onchange="setProxyDir('${p.id}',this.value)" style="width:auto;padding:3px 8px;font-size:12px;">
+          <option value="positive">Expected: positive ↑</option>
+          <option value="negative">Expected: negative ↓</option>
+          <option value="unknown">Direction unknown</option>
+        </select>
+        <input type="text" value="${esc(p.unit)}" placeholder="unit (e.g. %)" style="width:90px;padding:3px 8px;font-size:12px;" oninput="setProxyUnit('${p.id}',this.value)">
+      </div>
+    </div>`).join('');
+}
+function removeProxy(id){proxies=proxies.filter(p=>p.id!==id);renderProxyCards();rebuildTable();}
+function setProxyDir(id,v){const p=proxies.find(x=>x.id===id);if(p)p.direction=v;}
+function setProxyUnit(id,v){const p=proxies.find(x=>x.id===id);if(p)p.unit=v;}
+function setStatus(id,cls,html){const el=document.getElementById('ps-'+id);if(el){el.className='status-pill '+cls;el.innerHTML=html;}}
+
+async function loadProxy(p){
+  setStatus(p.id,'status-loading','<span class="spinner"></span> Loading…');
+  try{
+    const cached=iCache[p.indicatorId];
+    const raw=cached||await(async()=>{
+      const r=await fetch(`${WB}/country/all/indicator/${p.indicatorId}?format=json&mrv=1&per_page=500`);
+      const j=await r.json();
+      if(!Array.isArray(j)||!j[1]) return [];
+      iCache[p.indicatorId]=j[1];
+      return j[1];
+    })();
+    p.data={};
+    let mn=9999,mx=0;
+    for(const rec of raw){
+      const iso=rec.countryiso3code;
+      if(!iso||SKIP.has(iso)||rec.value==null) continue;
+      p.data[iso]={value:rec.value,name:rec.country?.value||iso,year:rec.date};
+      const y=parseInt(rec.date);if(y<mn)mn=y;if(y>mx)mx=y;
+    }
+    const n=Object.keys(p.data).length;
+    setStatus(p.id,'status-ok',`✓ ${n} countries`);
+    const yrEl=document.getElementById('pyr-'+p.id);
+    if(yrEl&&n) yrEl.textContent=`(most recent, ${mn}–${mx})`;
+    rebuildTable();
+  }catch(e){setStatus(p.id,'status-error','✕ Load failed — check connection');}
+}
+
+/* ── training table ── */
+function rebuildTable(){
+  if(!proxies.length){
+    document.getElementById('trainingArea').innerHTML='<div class="card"><div class="empty-state">Add proxy indicators above — country data will load automatically.</div></div>';
+    return;
+  }
+  // union of countries across all loaded proxies
+  const countries=new Map();
+  for(const p of proxies) for(const [iso,d] of Object.entries(p.data)) if(!countries.has(iso)) countries.set(iso,d.name||iso);
+
+  // add new countries not yet in rows
+  const existingIsos=new Set(rows.map(r=>r.iso3));
+  for(const [iso,name] of countries){
+    if(!existingIsos.has(iso)){
+      const row={id:uid(),location:name,iso3:iso,outcome:''};
+      proxies.forEach(p=>{row[p.id]=p.data[iso]?.value??'';});
+      rows.push(row);
+    }
+  }
+  // backfill proxy values for existing rows from newly loaded proxies
+  for(const row of rows){
+    proxies.forEach(p=>{if(row[p.id]===undefined) row[p.id]=p.data[row.iso3]?.value??'';});
+  }
+  renderTable();
+}
+
+function renderTable(){
+  const oName=document.getElementById('outcomeVar').value||'Outcome';
+  // count complete rows
+  const complete=rows.filter(r=>r.outcome!==''&&r.outcome!=null&&proxies.every(p=>r[p.id]!==''&&r[p.id]!=null));
+  const total=rows.length;
+  const pct=total?Math.round(complete.length/total*100):0;
+
+  let thead=`<th>Location</th><th>${esc(oName)} <span style="font-weight:400;color:var(--text3)">(known)</span></th>`;
+  proxies.forEach(p=>{thead+=`<th title="${esc(p.name)}">${esc(p.name.length>22?p.name.slice(0,20)+'…':p.name)}</th>`;});
+  thead+='<th></th>';
+
+  let tbody='';
+  for(const row of rows){
+    const missingOutcome=row.outcome===''||row.outcome==null;
+    let tds=`<td><input type="text" value="${esc(row.location)}" style="min-width:110px;" onchange="upRow('${row.id}','location',this.value)"></td>`;
+    tds+=`<td class="${missingOutcome?'missing':''}"><input type="number" value="${esc(row.outcome)}" placeholder="enter value" onchange="upRow('${row.id}','outcome',this.value)"></td>`;
+    proxies.forEach(p=>{
+      const v=row[p.id];
+      const miss=(v===''||v==null);
+      tds+=`<td class="${miss?'missing':''}">${miss?`<span class="na-text">no WB data</span>`:`<input type="number" value="${v}" onchange="upRow('${row.id}','${p.id}',this.value)">`}</td>`;
+    });
+    tds+=`<td><button class="remove-btn" onclick="delRow('${row.id}')">×</button></td>`;
+    tbody+=`<tr>${tds}</tr>`;
+  }
+
+  const missingOutcomeCount=rows.filter(r=>r.outcome===''||r.outcome==null).length;
+
+  document.getElementById('trainingArea').innerHTML=`
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:500;">${complete.length} of ${total} rows usable for regression</div>
+          <div style="height:5px;width:200px;background:var(--bg3);border-radius:3px;overflow:hidden;margin-top:5px;"><div style="height:100%;width:${pct}%;background:var(--teal);border-radius:3px;transition:width .4s;"></div></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn sm" onclick="addManualRow()">+ Add row</button>
+          <button class="btn sm" onclick="refreshAll()">↻ Refresh WB data</button>
+        </div>
+      </div>
+      ${missingOutcomeCount>0?`<div class="notice warn" style="margin-bottom:10px;">⚠ <strong>${missingOutcomeCount} rows</strong> are missing known outcome values (highlighted). Enter these to use them as training data — rows with no outcome are skipped in regression.</div>`:''}
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--amber);margin-bottom:6px;"><div style="width:12px;height:12px;border-radius:2px;background:var(--amber-bg);border:.5px solid rgba(133,79,11,.4);flex-shrink:0;"></div>Highlighted = missing World Bank data for that country/indicator</div>
+      <div class="tbl-scroll"><table class="data-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table></div>
+    </div>`;
+}
+
+function upRow(id,field,val){const r=rows.find(x=>x.id===id);if(r){r[field]=val;renderTable();}}
+function delRow(id){rows=rows.filter(r=>r.id!==id);renderTable();}
+function addManualRow(){const row={id:uid(),location:'',iso3:'',outcome:''};proxies.forEach(p=>{row[p.id]='';});rows.push(row);renderTable();}
+async function refreshAll(){for(const p of proxies){delete iCache[p.indicatorId];await loadProxy(p);}}
+
+/* ── regression math ── */
+function mean(a){return a.reduce((s,x)=>s+x,0)/a.length;}
+function std(a){const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1));}
+function pearsonR(a,b){const ma=mean(a),mb=mean(b),sa=std(a),sb=std(b);if(!sa||!sb)return 0;return a.reduce((s,x,i)=>s+(x-ma)*(b[i]-mb),0)/((a.length-1)*sa*sb);}
+function multiReg(Y,Xs){
+  const n=Y.length,k=Xs.length;
+  const X=Y.map((_,i)=>[1,...Xs.map(x=>x[i])]);
+  const mul=(A,B)=>A.map(r=>B[0].map((_,j)=>r.reduce((s,_,l)=>s+r[l]*B[l][j],0)));
+  const T=A=>A[0].map((_,i)=>A.map(r=>r[i]));
+  function inv(m){
+    const n=m.length,a=m.map((r,i)=>[...r,...Array.from({length:n},(_,j)=>+(i===j))]);
+    for(let i=0;i<n;i++){
+      let mx=i;for(let j=i+1;j<n;j++)if(Math.abs(a[j][i])>Math.abs(a[mx][i]))mx=j;
+      [a[i],a[mx]]=[a[mx],a[i]];
+      const p=a[i][i];if(Math.abs(p)<1e-10)return null;
+      for(let j=0;j<2*n;j++)a[i][j]/=p;
+      for(let j=0;j<n;j++)if(j!==i){const f=a[j][i];for(let l=0;l<2*n;l++)a[j][l]-=f*a[i][l];}
+    }
+    return a.map(r=>r.slice(n));
+  }
+  const Xt=T(X),XtX=mul(Xt,X),Xi=inv(XtX);if(!Xi)return null;
+  const beta=mul(Xi,mul(Xt,Y.map(y=>[y]))).map(r=>r[0]);
+  const yh=X.map(r=>r.reduce((s,x,i)=>s+x*beta[i],0));
+  const ym=mean(Y);
+  const SSr=Y.reduce((s,y,i)=>s+(y-yh[i])**2,0),SSt=Y.reduce((s,y)=>s+(y-ym)**2,0);
+  const R2=1-SSr/SSt,R2a=1-(1-R2)*(n-1)/(n-k-1),s2=SSr/(n-k-1);
+  const se=Xi.map((_,i)=>Math.sqrt(s2*Xi[i][i]));
+  const t=beta.map((b,i)=>b/se[i]);
+  function lg(z){const c=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,1.208650973866179e-3,-5.395239384953e-6];let y=z,x=z,tmp=x+5.5;tmp-=(x+.5)*Math.log(tmp);let s=1.000000000190015;c.forEach((v,i)=>s+=v/(y+=1));return -tmp+Math.log(2.5066282746310005*s/x);}
+  function tCDF(t,df){const x=df/(df+t*t);let b=0;const a=.5,bv=df/2;for(let i=0;i<200;i++){const xi=x*i/200;b+=Math.pow(xi,a-1)*Math.pow(1-xi,bv-1)*x/200;}return b/Math.exp(lg(a)+lg(bv)-lg(a+bv));}
+  const pv=t.map(tv=>2*tCDF(Math.abs(tv),n-k-1));
+  return{beta,pv,R2,R2a,yh,SSr,n,k,s2};
+}
+
+/* ── run ── */
+function runAnalysis(){
+  const vr=rows.filter(r=>r.outcome!==''&&r.outcome!=null&&proxies.every(p=>r[p.id]!==''&&r[p.id]!=null));
+  const area=document.getElementById('resultsArea');
+  if(!proxies.length){area.innerHTML=`<div class="card"><div class="empty-state">Add proxy indicators in step 2 first.</div></div>`;return;}
+  if(vr.length<proxies.length+2){
+    const mOut=rows.filter(r=>r.outcome===''||r.outcome==null).length;
+    area.innerHTML=`<div class="card"><div class="empty-state">Need ≥ ${proxies.length+2} complete rows to fit ${proxies.length} proxy variable${proxies.length>1?'s':''}. Have ${vr.length} of ${rows.length} complete.</div>
+    ${mOut?`<div class="notice warn">⚠ ${mOut} row${mOut>1?'s are':' is'} missing the known outcome value. Fill in the "${document.getElementById('outcomeVar').value||'Outcome'}" column (highlighted amber) for training countries where the data exists.</div>`:''}
+    </div>`;return;
+  }
+  const Y=vr.map(r=>+r.outcome);
+  const Xs=proxies.map(p=>vr.map(r=>+r[p.id]));
+  const res=multiReg(Y,Xs);
+  if(!res){area.innerHTML=`<div class="card"><div class="empty-state">Matrix inversion failed — check for perfectly correlated proxies or duplicate columns.</div></div>`;return;}
+  lastResult={res,Xs,Y,vr};
+  const oVar=document.getElementById('outcomeVar').value||'Outcome';
+  const unit=document.getElementById('outcomeUnit').value||'';
+  const mab=Math.max(...res.beta.slice(1).map(Math.abs));
+  const corrs=proxies.map((p,i)=>({name:p.name,r:pearsonR(Xs[i],Y)}));
+  const sig=p=>p<.05?`<span class="sig" style="background:var(--green-bg);color:var(--green)">p &lt; .05</span>`:p<.1?`<span class="sig" style="background:var(--amber-bg);color:var(--amber)">p &lt; .10</span>`:`<span class="sig" style="background:var(--bg2);color:var(--text3)">p &gt; .10</span>`;
+  const skipped=rows.length-vr.length;
+  const projIn=proxies.map((p,i)=>`<div class="proj-field"><label>${esc(p.name.length>34?p.name.slice(0,32)+'…':p.name)}${p.unit?' ('+esc(p.unit)+')':''}</label><input type="number" id="pi_${p.id}" placeholder="enter value" oninput="updProj()"></div>`).join('');
+
+  area.innerHTML=`
+    <div class="tab-row">
+      <button class="tab active" onclick="st('model',this)">Model fit</button>
+      <button class="tab" onclick="st('coefficients',this)">Coefficients</button>
+      <button class="tab" onclick="st('correlations',this)">Correlations</button>
+      <button class="tab" onclick="st('projection',this)">Projection</button>
+    </div>
+    <div id="t-model">
+      ${skipped?`<div class="notice warn" style="margin-bottom:12px;">⚠ ${skipped} row${skipped>1?'s':''} skipped (missing outcome or proxy values).</div>`:''}
+      <div class="metric-grid">
+        <div class="metric"><div class="lbl">R²</div><div class="val">${res.R2.toFixed(3)}</div><div class="sub">variance explained</div></div>
+        <div class="metric"><div class="lbl">Adj. R²</div><div class="val">${res.R2a.toFixed(3)}</div><div class="sub">penalized for vars</div></div>
+        <div class="metric"><div class="lbl">Training rows</div><div class="val">${res.n}</div><div class="sub">complete obs.</div></div>
+        <div class="metric"><div class="lbl">Proxies</div><div class="val">${res.k}</div><div class="sub">predictors</div></div>
+        <div class="metric"><div class="lbl">RMSE</div><div class="val">${Math.sqrt(res.SSr/res.n).toFixed(2)}</div><div class="sub">${unit} avg. error</div></div>
+      </div>
+      <div class="card"><div style="font-size:12px;color:var(--text2);margin-bottom:10px;">Predicted vs. actual — training data</div><div class="scatter-wrap"><canvas id="sc"></canvas></div></div>
+    </div>
+    <div id="t-coefficients" style="display:none;">
+      <div class="card">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Data-driven weights for each proxy — replacing arbitrary equal-weighting. Each coefficient = change in ${esc(oVar)} per 1-unit increase in that proxy (all others held constant).</div>
+        <div class="coef-row"><div class="coef-name" style="font-size:12px;font-weight:400;color:var(--text2);">Intercept</div><div class="bar-wrap"></div><div class="coef-val">${res.beta[0].toFixed(3)}</div><div>${sig(res.pv[0])}</div></div>
+        ${proxies.map((p,i)=>{const b=res.beta[i+1];const pct=mab?Math.abs(b)/mab*80:10;const col=b>=0?'#1D9E75':'#D85A30';return`<div class="coef-row"><div class="coef-name">${esc(p.name)}<br><span style="font-size:11px;font-weight:400;color:var(--text2);">${b>=0?'↑ higher → higher outcome':'↓ higher → lower outcome'}</span></div><div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${col};"></div></div><div class="coef-val">${b.toFixed(4)}</div><div>${sig(res.pv[i+1])}</div></div>`;}).join('')}
+      </div>
+    </div>
+    <div id="t-correlations" style="display:none;">
+      <div class="card">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;">Pairwise Pearson r with <strong>${esc(oVar)}</strong>. Multivariate regression accounts for overlap between correlated proxies — these are reference only.</div>
+        ${corrs.sort((a,b)=>Math.abs(b.r)-Math.abs(a.r)).map(c=>{const pct=Math.abs(c.r)*100;const col=c.r>0?'#1D9E75':'#D85A30';return`<div class="corr-cell"><span style="color:var(--text2);flex:1;">${esc(c.name.length>44?c.name.slice(0,42)+'…':c.name)}</span><div style="flex:2;margin:0 12px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${pct.toFixed(1)}%;background:${col};border-radius:3px;"></div></div><span class="corr-r" style="color:${col}">${c.r>=0?'+':''}${c.r.toFixed(3)}</span></div>`;}).join('')}
+      </div>
+    </div>
+    <div id="t-projection" style="display:none;">
+      <div class="card">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:1rem;">Enter proxy values for the location you want to estimate.</div>
+        <div class="proj-inputs">${projIn}</div>
+        <div class="proj-box">
+          <div class="proj-lbl">Projected ${esc(oVar)}</div>
+          <div class="proj-val" id="pv">—</div>
+          <div class="proj-ci" id="pc">Enter all proxy values above</div>
+        </div>
+        <div class="notice">95% prediction interval reflects model uncertainty. Extrapolation beyond the training range should be flagged in your reporting.</div>
+      </div>
+    </div>`;
+
+  setTimeout(()=>{
+    const ctx=document.getElementById('sc');if(!ctx)return;
+    if(scatterChart)scatterChart.destroy();
+    const all=[...Y,...res.yh];
+    const mn=Math.min(...all)-2,mx=Math.max(...all)+2;
+    scatterChart=new Chart(ctx,{type:'scatter',data:{datasets:[
+      {data:res.yh.map((yp,i)=>({x:Y[i],y:yp,l:vr[i].location})),backgroundColor:'#1D9E75',borderColor:'#0F6E56',pointRadius:6,pointHoverRadius:8},
+      {data:[{x:mn,y:mn},{x:mx,y:mx}],type:'line',borderColor:'#B4B2A9',borderDash:[4,4],borderWidth:1,pointRadius:0,showLine:true}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.l||'obs'}: actual ${c.raw.x.toFixed(1)}, predicted ${c.raw.y.toFixed(1)}`}}},scales:{
+      x:{min:mn,max:mx,title:{display:true,text:`Actual ${oVar} (${unit})`,font:{size:11},color:'#888780'},ticks:{font:{size:11}}},
+      y:{min:mn,max:mx,title:{display:true,text:'Predicted',font:{size:11},color:'#888780'},ticks:{font:{size:11}}}
+    }}});
+  },100);
+}
+
+function updProj(){
+  if(!lastResult)return;
+  const{res}=lastResult;
+  const unit=document.getElementById('outcomeUnit').value||'';
+  const vals=proxies.map(p=>{const el=document.getElementById('pi_'+p.id);return el?parseFloat(el.value):NaN;});
+  if(vals.some(isNaN)){document.getElementById('pv').textContent='—';document.getElementById('pc').textContent='Enter all proxy values above';return;}
+  const pred=res.beta[0]+proxies.reduce((s,p,i)=>s+res.beta[i+1]*vals[i],0);
+  const ci=2*Math.sqrt(res.s2*(1+1/res.n));
+  document.getElementById('pv').textContent=pred.toFixed(1)+(unit?' '+unit:'');
+  document.getElementById('pc').textContent=`95% interval: [${(pred-ci).toFixed(1)}, ${(pred+ci).toFixed(1)}] ${unit}`;
+}
+
+function st(name,btn){
+  ['model','coefficients','correlations','projection'].forEach(t=>{const el=document.getElementById('t-'+t);if(el)el.style.display=t===name?'':'none';});
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+document.addEventListener('click',e=>{
+  const dd=document.getElementById('searchDd');
+  if(dd&&!dd.contains(e.target)&&e.target.id!=='searchInput')dd.style.display='none';
+});
+</script>
+</body>
+</html>
