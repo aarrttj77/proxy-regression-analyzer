@@ -193,6 +193,20 @@ let searchTimer = null;
 const iCache = {};
 const SKIP = new Set('WLD EAS ECS LCN MEA NAC SAS SSF EAP MNA LAC SSA HIC LMC LIC UMC LMY MIC OED EUU EMU IBD IBT IDB IDA IDX CSS CEB EAR FCS HPC LTE PRE PSS PST TEA TEC TLA TMN TSA TSS OSS ARB'.split(' '));
 const WB = 'https://api.worldbank.org/v2';
+const PROXY = 'https://corsproxy.io/?url=';
+async function wbFetch(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('direct failed');
+    const j = await r.json();
+    if (Array.isArray(j) && j[0]?.message) throw new Error('WB error');
+    return j;
+  } catch(e) {
+    const r2 = await fetch(PROXY + encodeURIComponent(url));
+    if (!r2.ok) throw new Error('proxy also failed');
+    return r2.json();
+  }
+}
 
 function uid(){return Math.random().toString(36).slice(2,8);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -220,8 +234,7 @@ function onSearch(val){
 async function doSearch(q){
   const dd=document.getElementById('searchDd');
   try{
-    const r=await fetch(`${WB}/indicator?format=json&source=2&search=${encodeURIComponent(q)}&per_page=40`);
-    const j=await r.json();
+    const j=await wbFetch(`${WB}/indicator?format=json&source=2&search=${encodeURIComponent(q)}&per_page=40`);
     const items=(Array.isArray(j)&&j[1])||[];
     if(!items.length){dd.innerHTML='<div class="ac-msg">No indicators found. Try different keywords.</div>';return;}
     dd.innerHTML=items.slice(0,30).map((x,i)=>`
@@ -273,8 +286,7 @@ async function loadProxy(p){
   try{
     const cached=iCache[p.indicatorId];
     const raw=cached||await(async()=>{
-      const r=await fetch(`${WB}/country/all/indicator/${p.indicatorId}?format=json&mrv=1&per_page=500`);
-      const j=await r.json();
+      const j=await wbFetch(`${WB}/country/all/indicator/${p.indicatorId}?format=json&mrv=1&per_page=500`);
       if(!Array.isArray(j)||!j[1]) return [];
       iCache[p.indicatorId]=j[1];
       return j[1];
