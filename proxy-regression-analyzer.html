@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proxy Regression Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --font-sans: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --bg: #ffffff;
+  --bg-secondary: #f5f5f3;
+  --bg-tertiary: #eeecea;
+  --text-primary: #1a1a18;
+  --text-secondary: #6b6b67;
+  --text-tertiary: #9b9b96;
+  --border: rgba(0,0,0,0.12);
+  --border-mid: rgba(0,0,0,0.22);
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --success-bg: #EAF3DE; --success-text: #3B6D11;
+  --warn-bg: #FAEEDA; --warn-text: #854F0B;
+  --danger-bg: #FAECE7; --danger-text: #993C1D;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1a; --bg-secondary: #252523; --bg-tertiary: #2e2e2b;
+    --text-primary: #f0efea; --text-secondary: #a0a09a; --text-tertiary: #707068;
+    --border: rgba(255,255,255,0.1); --border-mid: rgba(255,255,255,0.18);
+    --success-bg: #17300a; --success-text: #8ecf55;
+    --warn-bg: #2e1f05; --warn-text: #f4b84a;
+    --danger-bg: #2a1008; --danger-text: #f08060;
+  }
+}
+body { font-family: var(--font-sans); color: var(--text-primary); background: var(--bg-tertiary); min-height: 100vh; padding: 2rem 1rem; line-height: 1.5; }
+.page-wrap { max-width: 880px; margin: 0 auto; }
+header { margin-bottom: 2rem; }
+header h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+header p { font-size: 14px; color: var(--text-secondary); max-width: 600px; }
+.section { margin-bottom: 1.75rem; }
+.section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 0.85rem; }
+.step-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--bg-secondary); border: 0.5px solid var(--border); font-size: 12px; font-weight: 500; color: var(--text-secondary); flex-shrink: 0; }
+.section-head h2 { font-size: 15px; font-weight: 500; }
+.card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; }
+.row { display: flex; gap: 12px; flex-wrap: wrap; }
+.field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 160px; }
+.field label { font-size: 12px; color: var(--text-secondary); }
+input[type=text], input[type=number], select {
+  padding: 7px 10px; border: 0.5px solid var(--border-mid); border-radius: var(--radius-md);
+  background: var(--bg); color: var(--text-primary); font-family: var(--font-sans); font-size: 13px; width: 100%;
+}
+input:focus, select:focus { outline: none; border-color: var(--text-secondary); }
+.btn { padding: 7px 14px; border-radius: var(--radius-md); border: 0.5px solid var(--border-mid); background: transparent; cursor: pointer; font-size: 13px; color: var(--text-primary); font-family: var(--font-sans); transition: background 0.15s; }
+.btn:hover { background: var(--bg-secondary); }
+.btn.primary { background: var(--text-primary); color: var(--bg); border-color: var(--text-primary); }
+.btn.primary:hover { opacity: 0.85; }
+.btn.sm { padding: 4px 10px; font-size: 12px; }
+.proxy-grid { display: grid; grid-template-columns: 2fr 0.7fr 1fr 1fr 28px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.proxy-grid.hdr { font-size: 11px; color: var(--text-tertiary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+.remove-btn { background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 18px; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+.remove-btn:hover { color: var(--danger-text); background: var(--danger-bg); }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th { font-size: 11px; font-weight: 500; color: var(--text-secondary); text-align: left; padding: 6px 8px; border-bottom: 0.5px solid var(--border); background: var(--bg-secondary); }
+.data-table th:first-child { border-radius: var(--radius-md) 0 0 0; }
+.data-table th:last-child { border-radius: 0 var(--radius-md) 0 0; }
+.data-table td { padding: 4px 6px; border-bottom: 0.5px solid var(--border); }
+.data-table td input { border: 0.5px solid transparent; border-radius: 4px; padding: 4px 6px; font-size: 13px; background: transparent; color: var(--text-primary); font-family: var(--font-sans); width: 100%; }
+.data-table td input:focus { border-color: var(--border-mid); background: var(--bg-secondary); outline: none; }
+.data-table tr:last-child td { border-bottom: none; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+.metric { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 12px; }
+.metric .lbl { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+.metric .val { font-size: 22px; font-weight: 500; }
+.metric .sub { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.coef-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 0.5px solid var(--border); gap: 10px; }
+.coef-row:last-child { border-bottom: none; }
+.coef-name { font-size: 14px; font-weight: 500; flex: 1; min-width: 100px; }
+.coef-val { font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary); min-width: 64px; text-align: right; }
+.bar-wrap { flex: 2; height: 7px; background: var(--bg-secondary); border-radius: 4px; overflow: hidden; min-width: 60px; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s; }
+.sig-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; min-width: 54px; text-align: center; white-space: nowrap; }
+.corr-cell { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 12px; background: var(--bg-secondary); border-radius: var(--radius-md); margin-bottom: 6px; gap: 10px; }
+.corr-r { font-family: var(--font-mono); font-weight: 500; min-width: 52px; text-align: right; }
+.projection-box { background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 2rem; text-align: center; }
+.proj-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+.proj-value { font-size: 48px; font-weight: 500; line-height: 1; margin-bottom: 6px; }
+.proj-ci { font-size: 13px; color: var(--text-secondary); }
+.proj-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+.proj-field { display: flex; flex-direction: column; gap: 4px; }
+.proj-field label { font-size: 12px; color: var(--text-secondary); }
+.tab-row { display: flex; gap: 2px; margin-bottom: 1.25rem; border-bottom: 0.5px solid var(--border); overflow-x: auto; }
+.tab { padding: 8px 14px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-secondary); background: none; border-left: none; border-right: none; border-top: none; font-family: var(--font-sans); margin-bottom: -0.5px; white-space: nowrap; }
+.tab.active { color: var(--text-primary); border-bottom: 2px solid var(--text-primary); font-weight: 500; }
+.notice { font-size: 12px; color: var(--text-secondary); padding: 10px 14px; border: 0.5px solid var(--border); border-radius: var(--radius-md); margin-top: 12px; }
+.empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-secondary); font-size: 14px; }
+.scatter-wrap { position: relative; width: 100%; height: 300px; }
+.run-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+<header>
+  <h1>Proxy Regression Analyzer</h1>
+  <p>Estimate unknown outcomes using proxy variables and multivariate regression. Useful when direct survey data is unavailable or outdated.</p>
+</header>
+
+<div class="section">
+  <div class="section-head"><span class="step-badge">1</span><h2>Define your target variable</h2></div>
+  <div class="card">
+    <div class="row">
+      <div class="field">
+        <label>What are you trying to estimate? (outcome variable)</label>
+        <input type="text" id="outcomeVar" placeholder="e.g. Vitamin A deficiency prevalence (%)" value="Vitamin A deficiency prevalence (%)">
+      </div>
+      <div class="field" style="max-width: 180px;">
+        <label>Unit</label>
+        <input type="text" id="outcomeUnit" placeholder="e.g. %, per 1000, score" value="%">
+      </div>
+    </div>
+    <div class="row" style="margin-top: 10px;">
+      <div class="field">
+        <label>Context notes (optional)</label>
+        <input type="text" id="contextNote" placeholder="e.g. Estimating for Nigerian states, 2018" value="Estimating by Nigerian state, 2018">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head"><span class="step-badge">2</span><h2>Define proxy variables</h2></div>
+  <div class="card">
+    <div class="proxy-grid hdr">
+      <div>Proxy variable name</div><div>Unit</div><div>Expected direction</div><div>Source / year</div><div></div>
+    </div>
+    <div id="proxyList"></div>
+    <button class="btn sm" onclick="addProxy()" style="margin-top: 8px;">+ Add proxy variable</button>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head"><span class="step-badge">3</span><h2>Enter training data</h2></div>
+  <div class="card">
+    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">Enter data from locations where the outcome <em>is</em> known. This trains the model.</p>
+    <div style="overflow-x: auto;">
+      <table class="data-table"><thead><tr id="tableHead"></tr></thead><tbody id="tableBody"></tbody></table>
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+      <button class="btn sm" onclick="addRow()">+ Add row</button>
+      <button class="btn sm" onclick="loadExample()">Load vitamin A example</button>
+    </div>
+    <div class="notice">You need at least as many rows as proxy variables + 2. More data from comparable regions = more reliable estimates.</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="run-row">
+    <div class="section-head" style="margin-bottom: 0;"><span class="step-badge">4</span><h2>Run analysis</h2></div>
+    <button class="btn primary" onclick="runAnalysis()">Run regression analysis</button>
+  </div>
+  <div id="resultsArea"></div>
+</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+let proxies = [], rows = [], lastResult = null, scatterChart = null;
+function uid() { return Math.random().toString(36).slice(2,8); }
+
+function addProxy(name='', unit='', direction='positive', source='') {
+  proxies.push({ id: uid(), name, unit, direction, source });
+  renderProxies(); renderTable();
+}
+function removeProxy(id) { proxies = proxies.filter(p => p.id !== id); renderProxies(); renderTable(); }
+function updateProxy(id, field, val) { const p = proxies.find(x => x.id === id); if (p) p[field] = val; }
+function renderProxies() {
+  document.getElementById('proxyList').innerHTML = proxies.map(p => `
+    <div class="proxy-grid">
+      <input type="text" value="${p.name}" placeholder="e.g. Stunting prevalence" onchange="updateProxy('${p.id}','name',this.value);renderTable();">
+      <input type="text" value="${p.unit}" placeholder="%" onchange="updateProxy('${p.id}','unit',this.value);">
+      <select onchange="updateProxy('${p.id}','direction',this.value)">
+        <option value="positive" ${p.direction==='positive'?'selected':''}>Positive ↑</option>
+        <option value="negative" ${p.direction==='negative'?'selected':''}>Negative ↓</option>
+        <option value="unknown" ${p.direction==='unknown'?'selected':''}>Unknown</option>
+      </select>
+      <input type="text" value="${p.source}" placeholder="e.g. DHS 2018" onchange="updateProxy('${p.id}','source',this.value);">
+      <button class="remove-btn" onclick="removeProxy('${p.id}')">×</button>
+    </div>`).join('');
+}
+
+function addRow(data={}) {
+  const id = uid(), row = { id, location: data.location||'', outcome: data.outcome!==undefined?data.outcome:'' };
+  proxies.forEach(p => { row[p.id] = data[p.id]!==undefined ? data[p.id] : ''; });
+  rows.push(row); renderTable();
+}
+function removeRow(id) { rows = rows.filter(r => r.id !== id); renderTable(); }
+function updateRow(id, field, val) { const r = rows.find(x => x.id === id); if (r) r[field] = val; }
+function renderTable() {
+  const outcome = document.getElementById('outcomeVar').value || 'Outcome';
+  document.getElementById('tableHead').innerHTML =
+    `<th>Location / unit</th><th>${outcome}</th>` + proxies.map(p => `<th>${p.name||'Proxy'}</th>`).join('') + '<th></th>';
+  document.getElementById('tableBody').innerHTML = rows.map(row => `
+    <tr>
+      <td><input type="text" value="${row.location}" placeholder="Country/Region" onchange="updateRow('${row.id}','location',this.value)"></td>
+      <td><input type="number" value="${row.outcome}" placeholder="known value" onchange="updateRow('${row.id}','outcome',this.value)"></td>
+      ${proxies.map(p => `<td><input type="number" value="${row[p.id]||''}" placeholder="—" onchange="updateRow('${row.id}','${p.id}',this.value)"></td>`).join('')}
+      <td><button class="remove-btn" onclick="removeRow('${row.id}')">×</button></td>
+    </tr>`).join('');
+}
+
+function loadExample() {
+  proxies = []; rows = [];
+  addProxy('Stunting prevalence','%','positive','NHMS 2018');
+  addProxy('Wasting prevalence','%','positive','NHMS 2018');
+  addProxy('Poverty rate (< $1.90/day)','%','positive','WB 2018');
+  addProxy('Open defecation rate','%','positive','JMP 2018');
+  const ex = [
+    {location:'Niger',outcome:45.1,vals:[47.8,14.8,44.5,73.9]},
+    {location:'Chad',outcome:42.0,vals:[39.9,13.8,38.4,66.4]},
+    {location:'Central African Republic',outcome:40.2,vals:[40.7,6.4,62.0,76.8]},
+    {location:'Madagascar',outcome:38.7,vals:[49.2,9.1,77.6,31.2]},
+    {location:'Ethiopia',outcome:36.4,vals:[38.4,9.9,26.7,27.6]},
+    {location:'Mozambique',outcome:34.1,vals:[43.1,6.1,62.9,36.5]},
+    {location:'Rwanda',outcome:28.3,vals:[38.0,2.3,55.5,5.6]},
+    {location:'Ghana',outcome:24.6,vals:[19.2,5.0,25.0,21.2]},
+    {location:'Kenya',outcome:21.0,vals:[26.0,4.0,36.1,11.4]},
+    {location:'Senegal',outcome:19.4,vals:[16.5,8.3,38.0,28.5]},
+    {location:"Côte d'Ivoire",outcome:17.2,vals:[29.6,5.1,46.3,31.7]},
+    {location:'Tanzania',outcome:33.0,vals:[34.7,5.0,49.1,22.9]},
+  ];
+  ex.forEach(d => {
+    const row = { id: uid(), location: d.location, outcome: d.outcome };
+    proxies.forEach((p,i) => { row[p.id] = d.vals[i]; });
+    rows.push(row);
+  });
+  document.getElementById('outcomeVar').value = 'Vitamin A deficiency prevalence';
+  document.getElementById('outcomeUnit').value = '%';
+  document.getElementById('contextNote').value = 'Estimating by Nigerian state, 2018 — training on comparable African nations';
+  renderProxies(); renderTable();
+}
+
+function mean(a) { return a.reduce((s,x)=>s+x,0)/a.length; }
+function std(a) { const m=mean(a); return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1)); }
+function pearsonR(a,b) { const ma=mean(a),mb=mean(b),sa=std(a),sb=std(b); return a.reduce((s,x,i)=>s+(x-ma)*(b[i]-mb),0)/((a.length-1)*sa*sb); }
+
+function multipleRegression(Y, Xs) {
+  const n=Y.length, k=Xs.length;
+  const X=Y.map((_,i)=>[1,...Xs.map(x=>x[i])]);
+  const matMul=(A,B)=>A.map(r=>B[0].map((_,j)=>r.reduce((s,_,l)=>s+r[l]*B[l][j],0)));
+  const matT=A=>A[0].map((_,i)=>A.map(r=>r[i]));
+  function matInv(m) {
+    const n=m.length, aug=m.map((r,i)=>[...r,...Array.from({length:n},(_,j)=>i===j?1:0)]);
+    for(let i=0;i<n;i++){
+      let mx=i; for(let j=i+1;j<n;j++) if(Math.abs(aug[j][i])>Math.abs(aug[mx][i])) mx=j;
+      [aug[i],aug[mx]]=[aug[mx],aug[i]];
+      const piv=aug[i][i]; if(Math.abs(piv)<1e-10) return null;
+      for(let j=0;j<2*n;j++) aug[i][j]/=piv;
+      for(let j=0;j<n;j++) if(j!==i){const f=aug[j][i]; for(let l=0;l<2*n;l++) aug[j][l]-=f*aug[i][l];}
+    }
+    return aug.map(r=>r.slice(n));
+  }
+  const Xt=matT(X), XtX=matMul(Xt,X), XtXinv=matInv(XtX);
+  if(!XtXinv) return null;
+  const beta=matMul(XtXinv,matMul(Xt,Y.map(y=>[y]))).map(r=>r[0]);
+  const yPred=X.map(row=>row.reduce((s,x,i)=>s+x*beta[i],0));
+  const yMean=mean(Y);
+  const SSres=Y.reduce((s,y,i)=>s+(y-yPred[i])**2,0);
+  const SStot=Y.reduce((s,y)=>s+(y-yMean)**2,0);
+  const R2=1-SSres/SStot, R2adj=1-(1-R2)*(n-1)/(n-k-1), sigma2=SSres/(n-k-1);
+  const seBeta=XtXinv.map((_,i)=>Math.sqrt(sigma2*XtXinv[i][i]));
+  const tStats=beta.map((b,i)=>b/seBeta[i]);
+  function lgamma(z){const c=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];let y=z,x=z,tmp=x+5.5;tmp-=(x+0.5)*Math.log(tmp);let ser=1.000000000190015;c.forEach((v,i)=>ser+=v/(y+=1));return -tmp+Math.log(2.5066282746310005*ser/x);}
+  function tCDF(t,df){const x=df/(df+t*t);let bi=0;const a=0.5,b=df/2,s=200;for(let i=0;i<s;i++){const xi=x*i/s;bi+=Math.pow(xi,a-1)*Math.pow(1-xi,b-1)*x/s;}const bf=Math.exp(lgamma(a)+lgamma(b)-lgamma(a+b));return bi/bf;}
+  const pValues=tStats.map((t,i)=>{const df=n-k-1;return 2*tCDF(Math.abs(t),df);});
+  return {beta,seBeta,tStats,pValues,R2,R2adj,yPred,SSres,n,k,sigma2};
+}
+
+function runAnalysis() {
+  const validRows = rows.filter(r => r.outcome!==''&&r.outcome!==undefined&&proxies.every(p=>r[p.id]!==''&&r[p.id]!==undefined));
+  if(validRows.length < proxies.length+2){
+    document.getElementById('resultsArea').innerHTML=`<div class="card"><div class="empty-state">Need at least ${proxies.length+2} complete rows to run with ${proxies.length} proxies. Currently have ${validRows.length}.</div></div>`;
+    return;
+  }
+  const Y=validRows.map(r=>parseFloat(r.outcome));
+  const Xs=proxies.map(p=>validRows.map(r=>parseFloat(r[p.id])));
+  const result=multipleRegression(Y,Xs);
+  if(!result){document.getElementById('resultsArea').innerHTML=`<div class="card"><div class="empty-state">Could not compute — check for multicollinearity or duplicate rows.</div></div>`;return;}
+  lastResult={result,Xs,Y,validRows};
+  const outcomeVar=document.getElementById('outcomeVar').value||'Outcome';
+  const unit=document.getElementById('outcomeUnit').value||'';
+  const maxAbsBeta=Math.max(...result.beta.slice(1).map(Math.abs));
+  const corrRows=proxies.map((p,i)=>({name:p.name||`Proxy ${i+1}`,r:pearsonR(Xs[i],Y)}));
+  const sigLabel=p=>p<0.05?`<span class="sig-badge" style="background:var(--success-bg);color:var(--success-text)">p &lt; .05</span>`:p<0.1?`<span class="sig-badge" style="background:var(--warn-bg);color:var(--warn-text)">p &lt; .10</span>`:`<span class="sig-badge" style="background:var(--bg-secondary);color:var(--text-secondary)">p &gt; .10</span>`;
+  const projInputs=proxies.map((p,i)=>`<div class="proj-field"><label>${p.name||'Proxy '+i} (${p.unit})</label><input type="number" id="proj_${p.id}" placeholder="enter value" oninput="updateProjection()"></div>`).join('');
+
+  document.getElementById('resultsArea').innerHTML=`
+    <div class="tab-row">
+      <button class="tab active" onclick="showTab('model',this)">Model fit</button>
+      <button class="tab" onclick="showTab('coefficients',this)">Coefficients</button>
+      <button class="tab" onclick="showTab('correlations',this)">Correlations</button>
+      <button class="tab" onclick="showTab('projection',this)">Projection</button>
+    </div>
+    <div id="tab-model">
+      <div class="metric-grid">
+        <div class="metric"><div class="lbl">R²</div><div class="val">${result.R2.toFixed(3)}</div><div class="sub">variance explained</div></div>
+        <div class="metric"><div class="lbl">Adjusted R²</div><div class="val">${result.R2adj.toFixed(3)}</div><div class="sub">penalized for vars</div></div>
+        <div class="metric"><div class="lbl">Training rows</div><div class="val">${result.n}</div><div class="sub">complete obs.</div></div>
+        <div class="metric"><div class="lbl">Proxy variables</div><div class="val">${result.k}</div><div class="sub">predictors</div></div>
+        <div class="metric"><div class="lbl">RMSE</div><div class="val">${Math.sqrt(result.SSres/result.n).toFixed(2)}</div><div class="sub">${unit} avg. error</div></div>
+      </div>
+      <div class="card"><div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Predicted vs. actual — training data</div><div class="scatter-wrap"><canvas id="scatterChart"></canvas></div></div>
+    </div>
+    <div id="tab-coefficients" style="display:none;">
+      <div class="card">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Contribution of each proxy to the estimate and statistical significance.</div>
+        <div class="coef-row">
+          <div class="coef-name" style="color:var(--text-secondary);font-size:12px;font-weight:400;">Intercept</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:20%;background:var(--bg-tertiary);"></div></div>
+          <div class="coef-val">${result.beta[0].toFixed(3)}</div>
+          <div>${sigLabel(result.pValues[0])}</div>
+        </div>
+        ${proxies.map((p,i)=>{const b=result.beta[i+1];const pct=maxAbsBeta>0?Math.abs(b)/maxAbsBeta*80:10;const col=b>=0?'#1D9E75':'#D85A30';return`<div class="coef-row"><div class="coef-name">${p.name||'Proxy '+i}<br><span style="font-size:11px;font-weight:400;color:var(--text-secondary)">${b>=0?'↑ higher → higher outcome':'↓ higher → lower outcome'}</span></div><div class="bar-wrap"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${col};"></div></div><div class="coef-val">${b.toFixed(4)}</div><div>${sigLabel(result.pValues[i+1])}</div></div>`;}).join('')}
+        <div class="notice">Coefficients show the change in ${outcomeVar} per 1-unit increase in each proxy, holding others constant.</div>
+      </div>
+    </div>
+    <div id="tab-correlations" style="display:none;">
+      <div class="card">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:14px;">Pearson correlation of each proxy with <strong>${outcomeVar}</strong>.</div>
+        ${corrRows.sort((a,b)=>Math.abs(b.r)-Math.abs(a.r)).map(c=>{const pct=Math.abs(c.r)*100;const col=c.r>0?'#1D9E75':'#D85A30';return`<div class="corr-cell"><span style="color:var(--text-secondary);flex:1;">${c.name}</span><div style="flex:2;margin:0 12px;height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;"><div style="height:100%;width:${pct.toFixed(1)}%;background:${col};border-radius:3px;"></div></div><span class="corr-r" style="color:${col}">${c.r>=0?'+':''}${c.r.toFixed(3)}</span></div>`;}).join('')}
+        <div class="notice">Multivariate regression accounts for overlap between proxies; these pairwise values are for reference.</div>
+      </div>
+    </div>
+    <div id="tab-projection" style="display:none;">
+      <div class="card">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:1rem;">Enter proxy values for the location you want to estimate.</div>
+        <div class="proj-inputs">${projInputs}</div>
+        <div class="projection-box">
+          <div class="proj-label">Projected ${outcomeVar}</div>
+          <div class="proj-value" id="projValue">—</div>
+          <div class="proj-ci" id="projCI">Enter proxy values above to generate estimate</div>
+        </div>
+        <div class="notice">The 95% prediction interval reflects model uncertainty. Treat estimates outside the training data range with extra caution.</div>
+      </div>
+    </div>`;
+
+  setTimeout(()=>{
+    const ctx=document.getElementById('scatterChart');
+    if(!ctx) return;
+    if(scatterChart) scatterChart.destroy();
+    const allVals=[...Y,...result.yPred];
+    const mn=Math.min(...allVals)-2, mx=Math.max(...allVals)+2;
+    scatterChart=new Chart(ctx,{type:'scatter',data:{datasets:[{label:'Observations',data:result.yPred.map((pred,i)=>({x:Y[i],y:pred,label:validRows[i].location})),backgroundColor:'#1D9E75',borderColor:'#0F6E56',pointRadius:6,pointHoverRadius:8},{label:'Perfect fit',data:[{x:mn,y:mn},{x:mx,y:mx}],type:'line',borderColor:'#B4B2A9',borderDash:[4,4],borderWidth:1,pointRadius:0,showLine:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw.label||'obs.'}: actual ${c.raw.x.toFixed(1)}, predicted ${c.raw.y.toFixed(1)}`}}},scales:{x:{min:mn,max:mx,title:{display:true,text:`Actual ${outcomeVar} (${unit})`,font:{size:11},color:'#888780'},ticks:{font:{size:11}}},y:{min:mn,max:mx,title:{display:true,text:'Predicted',font:{size:11},color:'#888780'},ticks:{font:{size:11}}}}}});
+  },100);
+}
+
+function updateProjection() {
+  if(!lastResult) return;
+  const {result} = lastResult;
+  const unit=document.getElementById('outcomeUnit').value||'';
+  const inputVals=proxies.map(p=>{const el=document.getElementById('proj_'+p.id);return el?parseFloat(el.value):NaN;});
+  if(inputVals.some(isNaN)){document.getElementById('projValue').textContent='—';document.getElementById('projCI').textContent='Enter all proxy values above';return;}
+  const pred=result.beta[0]+proxies.reduce((s,p,i)=>s+result.beta[i+1]*inputVals[i],0);
+  const se_pred=Math.sqrt(result.sigma2*(1+1/result.n));
+  const ci=2.0*se_pred;
+  document.getElementById('projValue').textContent=pred.toFixed(1)+(unit?' '+unit:'');
+  document.getElementById('projCI').textContent=`95% prediction interval: [${(pred-ci).toFixed(1)}, ${(pred+ci).toFixed(1)}] ${unit}`;
+}
+
+function showTab(name,btn) {
+  ['model','coefficients','correlations','projection'].forEach(t=>{const el=document.getElementById('tab-'+t);if(el)el.style.display=t===name?'':'none';});
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+addProxy('Stunting prevalence','%','positive','');
+addProxy('Poverty rate','%','positive','');
+addRow(); addRow();
+</script>
+</body>
+</html>
