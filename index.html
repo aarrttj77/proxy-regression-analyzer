@@ -215,19 +215,17 @@ let searchTimer = null;
 const iCache = {};
 const SKIP = new Set('WLD EAS ECS LCN MEA NAC SAS SSF EAP MNA LAC SSA HIC LMC LIC UMC LMY MIC OED EUU EMU IBD IBT IDB IDA IDX CSS CEB EAR FCS HPC LTE PRE PSS PST TEA TEC TLA TMN TSA TSS OSS ARB'.split(' '));
 const WB = 'https://api.worldbank.org/v2';
-const PROXY = 'https://corsproxy.io/?url=';
+// Route all WB requests through our Netlify function to avoid CORS issues
 async function wbFetch(url) {
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('direct failed');
-    const j = await r.json();
-    if (Array.isArray(j) && j[0]?.message) throw new Error('WB error');
-    return j;
-  } catch(e) {
-    const r2 = await fetch(PROXY + encodeURIComponent(url));
-    if (!r2.ok) throw new Error('proxy also failed');
-    return r2.json();
-  }
+  // Extract path and query from full WB url
+  const stripped = url.replace('https://api.worldbank.org/v2/', '');
+  const qmark = stripped.indexOf('?');
+  const path = qmark >= 0 ? stripped.slice(0, qmark) : stripped;
+  const query = qmark >= 0 ? stripped.slice(qmark + 1) : '';
+  const proxyUrl = `/.netlify/functions/wb?path=${encodeURIComponent(path)}&query=${encodeURIComponent(query)}`;
+  const r = await fetch(proxyUrl);
+  if (!r.ok) throw new Error('Proxy request failed: ' + r.status);
+  return r.json();
 }
 
 function uid(){return Math.random().toString(36).slice(2,8);}
