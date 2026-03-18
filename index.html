@@ -130,24 +130,45 @@ td.missing input{color:var(--amber);}
 
 <div class="section">
   <div class="section-head"><span class="step">1</span><h2>Define your target variable</h2></div>
-  <div class="card">
-    <div class="row">
-      <div class="field">
-        <label>What are you trying to estimate?</label>
-        <input type="text" id="outcomeVar" placeholder="e.g. Vitamin A deficiency prevalence (%)" value="Vitamin A deficiency prevalence (%)">
+  <div id="outcomeCard">
+    <div class="add-proxy-btn" id="addOutcomeBtn" onclick="openOutcomeSearch()">+ Search World Bank indicators to define your target variable</div>
+  </div>
+  <div id="outcomeSearchPanel" style="display:none;margin-top:10px;">
+    <div class="card">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">Search across ~16,000 World Bank indicators</div>
+      <div class="ac-wrap">
+        <input type="text" id="outcomeSearchInput" placeholder="e.g. vitamin A, malnutrition, mortality, literacy…" oninput="onOutcomeSearch(this.value)" autocomplete="off">
+        <div id="outcomeSearchDd" class="ac-dropdown" style="display:none;"></div>
       </div>
-      <div class="field" style="max-width:180px;">
-        <label>Unit</label>
-        <input type="text" id="outcomeUnit" placeholder="e.g. %, per 1000" value="%">
-      </div>
+      <button class="btn sm" onclick="closeOutcomeSearch()" style="margin-top:8px;">Cancel</button>
     </div>
-    <div class="row" style="margin-top:10px;">
-      <div class="field">
-        <label>Context / notes</label>
-        <input type="text" id="contextNote" placeholder="e.g. Estimating for Nigerian states, 2018" value="Estimating by Nigerian state, 2018">
+  </div>
+  <!-- Selected outcome indicator card -->
+  <div id="outcomeSelected" style="display:none;">
+    <div class="proxy-card">
+      <div class="proxy-top">
+        <div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:4px;">Target variable</div>
+          <div class="proxy-name" id="outcomeNameDisplay"></div>
+          <div class="proxy-id" id="outcomeIdDisplay"></div>
+        </div>
+        <button class="remove-btn" onclick="clearOutcome()">×</button>
+      </div>
+      <div class="proxy-meta">
+        <span class="status-pill status-idle" id="outcomeStatus">Pending</span>
+        <span id="outcomeYearDisplay" style="font-size:12px;color:var(--text2);"></span>
+        <input type="text" id="outcomeUnit" placeholder="unit (e.g. %)" style="width:90px;padding:3px 8px;font-size:12px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <div class="field">
+          <label>Context / notes</label>
+          <input type="text" id="contextNote" placeholder="e.g. Estimating for Nigerian states, 2018">
+        </div>
       </div>
     </div>
   </div>
+  <!-- Hidden inputs kept for JS compatibility -->
+  <input type="hidden" id="outcomeVar" value="">
 </div>
 
 <div class="section">
@@ -185,6 +206,7 @@ td.missing input{color:var(--amber);}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
 /* ── state ── */
+let outcomeIndicator = null; // {indicatorId, name, unit, data:{iso3:{value,name,year}}}
 let proxies = [];
 let rows = [];
 let lastResult = null;
@@ -210,6 +232,92 @@ async function wbFetch(url) {
 
 function uid(){return Math.random().toString(36).slice(2,8);}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ── outcome search ── */
+let outcomeSearchTimer = null;
+function openOutcomeSearch(){
+  document.getElementById('outcomeSearchPanel').style.display='';
+  document.getElementById('addOutcomeBtn').style.display='none';
+  document.getElementById('outcomeSearchInput').value='';
+  document.getElementById('outcomeSearchDd').style.display='none';
+  setTimeout(()=>document.getElementById('outcomeSearchInput').focus(),50);
+}
+function closeOutcomeSearch(){
+  document.getElementById('outcomeSearchPanel').style.display='none';
+  if(!outcomeIndicator) document.getElementById('addOutcomeBtn').style.display='';
+}
+function clearOutcome(){
+  outcomeIndicator=null;
+  document.getElementById('outcomeSelected').style.display='none';
+  document.getElementById('addOutcomeBtn').style.display='';
+  document.getElementById('outcomeVar').value='';
+  // clear outcome values from all rows
+  for(const row of rows) row.outcome='';
+  if(rows.length) renderTable();
+}
+function onOutcomeSearch(val){
+  clearTimeout(outcomeSearchTimer);
+  const dd=document.getElementById('outcomeSearchDd');
+  if(val.trim().length<2){dd.style.display='none';return;}
+  dd.innerHTML='<div class="ac-msg"><span class="spinner"></span> Searching World Bank indicators…</div>';
+  dd.style.display='';
+  outcomeSearchTimer=setTimeout(()=>doOutcomeSearch(val.trim()),380);
+}
+async function doOutcomeSearch(q){
+  const dd=document.getElementById('outcomeSearchDd');
+  try{
+    const j=await wbFetch(`${WB}/indicator?format=json&source=2&search=${encodeURIComponent(q)}&per_page=40`);
+    const items=(Array.isArray(j)&&j[1])||[];
+    if(!items.length){dd.innerHTML='<div class="ac-msg">No indicators found. Try different keywords.</div>';return;}
+    dd.innerHTML=items.slice(0,30).map((x,i)=>`
+      <div class="ac-item" id="oaci-${i}" onclick="pickOutcomeIndicator('${esc(x.id)}','${esc(x.name)}','${esc(x.source?.value||'WDI')}')" onmouseover="hoverOutcomeItem(${i})">
+        <div class="ac-item-name">${esc(x.name)}</div>
+        <div class="ac-item-sub"><span class="ac-item-id">${esc(x.id)}</span><span class="ac-item-src">${esc(x.source?.value||'')}</span></div>
+      </div>`).join('');
+  }catch(e){dd.innerHTML='<div class="ac-msg" style="color:var(--red)">Could not reach World Bank API.</div>';}
+}
+function hoverOutcomeItem(i){document.querySelectorAll('#outcomeSearchDd .ac-item').forEach((el,j)=>el.classList.toggle('hover',i===j));}
+async function pickOutcomeIndicator(id,name,src){
+  closeOutcomeSearch();
+  outcomeIndicator={indicatorId:id,name:name,source:src,data:{}};
+  document.getElementById('outcomeVar').value=name;
+  document.getElementById('outcomeNameDisplay').textContent=name;
+  document.getElementById('outcomeIdDisplay').textContent=id;
+  document.getElementById('outcomeSelected').style.display='';
+  document.getElementById('addOutcomeBtn').style.display='none';
+  await loadOutcomeData();
+}
+async function loadOutcomeData(){
+  const p=outcomeIndicator;
+  if(!p) return;
+  setOutcomeStatus('status-loading','<span class="spinner"></span> Loading…');
+  try{
+    const j=await wbFetch(`${WB}/country/all/indicator/${p.indicatorId}?format=json&mrv=1&per_page=500`);
+    if(!Array.isArray(j)||!j[1]) throw new Error('no data');
+    p.data={};
+    let mn=9999,mx=0;
+    for(const rec of j[1]){
+      const iso=rec.countryiso3code;
+      if(!iso||SKIP.has(iso)||rec.value==null) continue;
+      p.data[iso]={value:rec.value,name:rec.country?.value||iso,year:rec.date};
+      const y=parseInt(rec.date);if(y<mn)mn=y;if(y>mx)mx=y;
+    }
+    const n=Object.keys(p.data).length;
+    setOutcomeStatus('status-ok',`✓ ${n} countries`);
+    const yrEl=document.getElementById('outcomeYearDisplay');
+    if(yrEl&&n) yrEl.textContent=`(most recent, ${mn}–${mx})`;
+    // backfill outcome values into existing rows
+    for(const row of rows){
+      if(p.data[row.iso3]) row.outcome=p.data[row.iso3].value;
+    }
+    if(rows.length) renderTable();
+    rebuildTable();
+  }catch(e){setOutcomeStatus('status-error','✕ Load failed');}
+}
+function setOutcomeStatus(cls,html){
+  const el=document.getElementById('outcomeStatus');
+  if(el){el.className='status-pill '+cls;el.innerHTML=html;}
+}
 
 /* ── search ── */
 function openSearch(){
@@ -313,21 +421,23 @@ function rebuildTable(){
     document.getElementById('trainingArea').innerHTML='<div class="card"><div class="empty-state">Add proxy indicators above — country data will load automatically.</div></div>';
     return;
   }
-  // union of countries across all loaded proxies
+  // union of countries across outcome indicator + all loaded proxies
   const countries=new Map();
+  if(outcomeIndicator) for(const [iso,d] of Object.entries(outcomeIndicator.data)) if(!countries.has(iso)) countries.set(iso,d.name||iso);
   for(const p of proxies) for(const [iso,d] of Object.entries(p.data)) if(!countries.has(iso)) countries.set(iso,d.name||iso);
 
   // add new countries not yet in rows
   const existingIsos=new Set(rows.map(r=>r.iso3));
   for(const [iso,name] of countries){
     if(!existingIsos.has(iso)){
-      const row={id:uid(),location:name,iso3:iso,outcome:''};
+      const row={id:uid(),location:name,iso3:iso,outcome:outcomeIndicator?.data[iso]?.value??''};
       proxies.forEach(p=>{row[p.id]=p.data[iso]?.value??'';});
       rows.push(row);
     }
   }
-  // backfill proxy values for existing rows from newly loaded proxies
+  // backfill outcome + proxy values for existing rows
   for(const row of rows){
+    if((row.outcome===''||row.outcome==null)&&outcomeIndicator?.data[row.iso3]) row.outcome=outcomeIndicator.data[row.iso3].value;
     proxies.forEach(p=>{if(row[p.id]===undefined) row[p.id]=p.data[row.iso3]?.value??'';});
   }
   renderTable();
@@ -521,6 +631,8 @@ function st(name,btn){
 document.addEventListener('click',e=>{
   const dd=document.getElementById('searchDd');
   if(dd&&!dd.contains(e.target)&&e.target.id!=='searchInput')dd.style.display='none';
+  const odd=document.getElementById('outcomeSearchDd');
+  if(odd&&!odd.contains(e.target)&&e.target.id!=='outcomeSearchInput')odd.style.display='none';
 });
 </script>
 </body>
