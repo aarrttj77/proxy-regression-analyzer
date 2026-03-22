@@ -215,9 +215,9 @@ let searchTimer = null;
 const iCache = {};
 const SKIP = new Set('WLD EAS ECS LCN MEA NAC SAS SSF EAP MNA LAC SSA HIC LMC LIC UMC LMY MIC OED EUU EMU IBD IBT IDB IDA IDX CSS CEB EAR FCS HPC LTE PRE PSS PST TEA TEC TLA TMN TSA TSS OSS ARB'.split(' '));
 const WB = 'https://api.worldbank.org/v2';
-// Route all WB requests through our Netlify function to avoid CORS issues
+
+// Route all WB API calls through our Netlify serverless function
 async function wbFetch(url) {
-  // Extract path and query from full WB url
   const stripped = url.replace('https://api.worldbank.org/v2/', '');
   const qmark = stripped.indexOf('?');
   const path = qmark >= 0 ? stripped.slice(0, qmark) : stripped;
@@ -225,6 +225,15 @@ async function wbFetch(url) {
   const proxyUrl = `/.netlify/functions/wb?path=${encodeURIComponent(path)}&query=${encodeURIComponent(query)}`;
   const r = await fetch(proxyUrl);
   if (!r.ok) throw new Error('Proxy request failed: ' + r.status);
+  return r.json();
+}
+
+// Indicator search — uses a dedicated server-side filtered route
+// The WB API search param does NOT filter server-side; we fetch all indicators
+// once and filter them in the Netlify function for accurate results
+async function wbSearchIndicators(term) {
+  const r = await fetch(`/.netlify/functions/wb?path=indicator%2Fsearch&search=${encodeURIComponent(term)}`);
+  if (!r.ok) throw new Error('Search failed: ' + r.status);
   return r.json();
 }
 
@@ -264,7 +273,7 @@ function onOutcomeSearch(val){
 async function doOutcomeSearch(q){
   const dd=document.getElementById('outcomeSearchDd');
   try{
-    const j=await wbFetch(`${WB}/indicator?format=json&source=2&search=${encodeURIComponent(q)}&per_page=40`);
+    const j=await wbSearchIndicators(q);
     const items=(Array.isArray(j)&&j[1])||[];
     if(!items.length){dd.innerHTML='<div class="ac-msg">No indicators found. Try different keywords.</div>';return;}
     dd.innerHTML=items.slice(0,30).map((x,i)=>`
@@ -340,7 +349,7 @@ function onSearch(val){
 async function doSearch(q){
   const dd=document.getElementById('searchDd');
   try{
-    const j=await wbFetch(`${WB}/indicator?format=json&source=2&search=${encodeURIComponent(q)}&per_page=40`);
+    const j=await wbSearchIndicators(q);
     const items=(Array.isArray(j)&&j[1])||[];
     if(!items.length){dd.innerHTML='<div class="ac-msg">No indicators found. Try different keywords.</div>';return;}
     dd.innerHTML=items.slice(0,30).map((x,i)=>`
